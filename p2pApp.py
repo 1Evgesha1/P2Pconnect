@@ -8,8 +8,9 @@ peers = []
 seen_msg = set()
 nickname = ""
 server_list = []
-current_server_index = 0
+current_server_index = None  # Текущий сервер
 
+# ======== Отправка сообщений ========
 def send_message():
     while True:
         msg = input()
@@ -17,7 +18,7 @@ def send_message():
         full_text = f"{nickname}: {msg}"
         full_msg = f"{msg_id}|{full_text}"
 
-        for peer in peers:
+        for peer in peers[:]:  # делаем копию списка
             try:
                 peer.send(full_msg.encode())
             except:
@@ -26,6 +27,7 @@ def send_message():
         seen_msg.add(msg_id)
         print(full_text)
 
+# ======== Обработка сообщений ========
 def handle_client(conn, addr):
     while True:
         try:
@@ -42,7 +44,7 @@ def handle_client(conn, addr):
             seen_msg.add(msg_id)
             print(msg_text)
 
-            for peer in peers:
+            for peer in peers[:]:
                 if peer != conn:
                     try:
                         peer.send(data)
@@ -55,6 +57,7 @@ def handle_client(conn, addr):
         peers.remove(conn)
     conn.close()
 
+# ======== Сервер ========
 def start_server(port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("0.0.0.0", port))
@@ -66,9 +69,10 @@ def start_server(port):
         peers.append(conn)
         threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
 
-def connect_to_next_server(start_index=0):
+# ======== Подключение к серверу ========
+def connect_to_server(index=0):
     global current_server_index
-    for i in range(start_index, len(server_list)):
+    for i in range(index, len(server_list)):
         ip, port = server_list[i]
         try:
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -80,36 +84,34 @@ def connect_to_next_server(start_index=0):
             return i
         except:
             continue
-    print("[-] Нет доступных серверов")
+    current_server_index = None
+    print("[-] Нет доступных серверов. Будем повторять попытку...")
     return None
 
+# ======== Мониторинг соединения ========
 def monitor_connection():
     global current_server_index
     while True:
         alive = False
-        for peer in peers:
+        for peer in peers[:]:
             try:
                 peer.send(b"ping")
                 alive = True
                 break
             except:
-                if peer in peers:
-                    peers.remove(peer)
+                peers.remove(peer)
+
         if not alive:
-            print("[!] Основной сервер недоступен, переподключаемся к следующему...")
-
-            if current_server_index is None:
-                current_server_index=0
-            else:
-                current_server_index+=1
-
-            current_server_index=connect_to_next_server(current_server_index)
+            print("[!] Основной сервер недоступен, переподключаемся...")
+            # Пытаемся подключиться к первому живому серверу
+            connect_to_server(0)
         time.sleep(5)
 
+# ======== MAIN ========
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Использование:")
-        print("python p2pApp.py <порт_этого_пира> <ip1:port1> <ip2:port2>")
+        print("python p2p_failover.py <порт_этого_пира> <ip1:port1> <ip2:port2> ...")
         sys.exit(1)
 
     nickname = input("Введите ваш никнейм: ")
@@ -119,10 +121,14 @@ if __name__ == "__main__":
         ip, port = s.split(":")
         server_list.append((ip, int(port)))
 
+    # Запуск локального сервера
     threading.Thread(target=start_server, args=(local_port,), daemon=True).start()
 
-    connect_to_next_server(0)
+    # Подключаемся к первому живому серверу
+    connect_to_server(0)
 
+    # Мониторинг соединения
     threading.Thread(target=monitor_connection, daemon=True).start()
 
+    # Отправка сообщений
     send_message()
