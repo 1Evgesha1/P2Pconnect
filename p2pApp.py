@@ -38,7 +38,7 @@ def handle_client(conn,addr):
                 continue
 
             seen_msg.add(msg_id)
-            print(f"{nickname}:{msg_text}")
+            print(msg_text)
 
             for peer in peers:
                 if peer != conn:
