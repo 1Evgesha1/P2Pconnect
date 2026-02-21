@@ -97,8 +97,13 @@ def monitor_connection():
                     peers.remove(peer)
         if not alive:
             print("[!] Основной сервер недоступен, переподключаемся к следующему...")
-            new_index = current_server_index + 1
-            current_server_index = connect_to_next_server(new_index)
+
+            if current_server_index is None:
+                current_server_index=0
+            else:
+                current_server_index+=1
+
+            current_server_index=connect_to_next_server(current_server_index)
         time.sleep(5)
 
 if __name__ == "__main__":
