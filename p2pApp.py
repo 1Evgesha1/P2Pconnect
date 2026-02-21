@@ -88,7 +88,6 @@ def connect_to_server(index=0):
     print("[-] Нет доступных серверов. Будем повторять попытку...")
     return None
 
-# ======== Мониторинг соединения ========
 def monitor_connection():
     global current_server_index
     while True:
